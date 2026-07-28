@@ -1,0 +1,5 @@
+# check.ps1 的日常報告：每次跑都會變，不進版控
+.harness/last-check.md
+
+# 測試沙盒殘留
+harness-kit-test-*/

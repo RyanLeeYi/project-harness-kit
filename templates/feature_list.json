@@ -1,0 +1,36 @@
+{
+  "project": "<< 專案／案子名稱 >>",
+  "harness_version": 1,
+  "promote_base": "beta",
+  "always_allowed_paths": [
+    ".harness/**",
+    "docs/**",
+    "AGENTS.md",
+    "CLAUDE.md"
+  ],
+  "features": [
+    {
+      "id": "F1",
+      "title": "<< 一句話：這個 feature 做什麼 >>",
+      "status": "failing",
+      "scope_paths": [
+        "src/<< 模組 >>/**",
+        "db/migrations/<< pattern >>.sql"
+      ],
+      "acceptance_frozen": false,
+      "signed_off_by": null,
+      "signed_off_at": null,
+      "acceptance": [
+        {
+          "id": "A1",
+          "check": "<< 怎麼做 + 判準。例：用測試資料集跑折扣批次，金額與人工試算表一致（10 筆抽樣） >>"
+        },
+        {
+          "id": "A2",
+          "check": "<< 例：月結報表改版前後數字比對，差異為 0 >>"
+        }
+      ],
+      "evidence": []
+    }
+  ]
+}
