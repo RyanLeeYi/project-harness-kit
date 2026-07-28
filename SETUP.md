@@ -23,6 +23,8 @@
 
 ## Step 1 · 複製檔案
 
+本 kit 位於目標 repo 的 `_harness-kit/`（或編輯器工作區裡的另一個資料夾）。**它是安裝來源，不是專案的一部分**——所有檔案用複製的，最後整個來源資料夾要刪掉。
+
 從本 kit 複製到目標 repo：
 
 ```
@@ -110,6 +112,16 @@ pwsh -File init.ps1
 ```
 
 會把 `check.ps1` 掛進 pre-commit。這層是加分，不是地板——真正的關卡在 `feature → beta` 的 PR。
+
+---
+
+## Step 7 · 刪掉安裝來源
+
+```powershell
+Remove-Item _harness-kit -Recurse -Force
+```
+
+留在 repo 裡的應該只有：`AGENTS.md`、`CLAUDE.md`、`.harness/`、`docs/`、`init.ps1`、PR template。
 
 ---
 

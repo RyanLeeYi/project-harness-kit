@@ -46,9 +46,27 @@
 
 ## 怎麼用
 
-把這個 repo clone 下來，然後對你的 AI agent 說：
+**這個 kit 是安裝來源，不是專案的一部分。** 裝完它就該消失，留下來的是 `AGENTS.md`、`.harness/`、`docs/`。
 
-> 讀 `SETUP.md`，照它的步驟在我這個專案裡建立 harness。
+在你的專案根目錄：
+
+```powershell
+git clone https://github.com/RyanLeeYi/project-harness-kit _harness-kit
+```
+
+然後對你的 AI agent 說：
+
+> 讀 `_harness-kit/SETUP.md`，照它的步驟在這個專案裡建立 harness。
+
+建置完成後刪掉來源：
+
+```powershell
+Remove-Item _harness-kit -Recurse -Force
+```
+
+> 為什麼 clone 進專案裡？因為多數 AI agent 只讀得到當前工作區的檔案。不想放暫存目錄的話，clone 到別處、再把該資料夾加進編輯器的工作區也可以，效果一樣。
+>
+> `_harness-kit/` 自帶 `.git`，一般不會被誤 commit，但建置完就刪最保險。
 
 `SETUP.md` 是寫給 agent 看的建置指引。它會帶著你——不是替你——決定範圍邊界與驗收標準，因為那兩件事 agent 猜不出來，**猜錯了整套就白建**。
 
