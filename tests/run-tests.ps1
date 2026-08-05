@@ -106,6 +106,19 @@ function Invoke-Case {
 
 Invoke-Case -Name '乾淨狀態' -Expect 'PASS' -Arrange {}
 
+# 迴歸：主控台是非 UTF-8 codepage（繁中 Windows 預設 cp950）時，PowerShell 會用它解碼
+# `git show` 的輸出，acceptance 裡的中文全變亂碼 → 基準與工作區永遠比不相等 → 乾淨狀態誤擋。
+# 這個 bug 不噴錯，只會安靜地擋住所有人，所以要在測試裡把那個環境重現出來。
+$prevConsoleEnc = [Console]::OutputEncoding
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(950)
+    Invoke-Case -Name '主控台非 UTF-8 時中文 acceptance 不誤擋' -Expect 'PASS' -Arrange {}
+} catch [System.NotSupportedException] {
+    Write-Host '[skip] 主控台非 UTF-8 迴歸（此平台沒有 cp950）'
+} finally {
+    [Console]::OutputEncoding = $prevConsoleEnc
+}
+
 Invoke-Case -Name '改到 scope 之外的檔案' -Expect 'FAIL' -Arrange {
     New-Item -ItemType Directory -Path 'src/Billing' -Force | Out-Null
     Set-Content 'src/Billing/Invoice.cs' 'touched' -Encoding UTF8

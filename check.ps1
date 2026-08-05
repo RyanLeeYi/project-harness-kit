@@ -29,6 +29,11 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# PowerShell 用 [Console]::OutputEncoding 解碼 native 指令的 stdout。Windows 主控台預設是
+# 系統 ANSI codepage（繁中機器＝cp950），於是 `git show` 讀回來的中文全變亂碼——
+# 基準版本與工作區永遠比不相等，gate 1 在什麼都沒改的乾淨狀態下就誤擋。
+# 只要 acceptance 寫中文就必中，而且不會噴錯，只會安靜地擋住所有人。
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 # PowerShell 7.4+ 預設會把 native 指令的非零 exit code 當成錯誤丟出。
 # 這裡刻意關掉：git 的「查無此物」是預期中的狀況，要由後面的邏輯判讀，不是例外。
 if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
