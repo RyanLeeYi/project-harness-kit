@@ -8,11 +8,32 @@
     "AGENTS.md",
     "CLAUDE.md"
   ],
+  "envelopes": [
+    {
+      "id": "E1",
+      "outcome": "<< 整個大工作做完後，外部看得到的改變。跨 3 條以上 feature 或跨多面向才建 envelope，小工作整個 envelopes 留空陣列 >>",
+      "constraints": [
+        "<< 底下每個 slice 都要遵守的共用約束。例：對外 API 維持 v1 相容 >>"
+      ],
+      "non_goals": [
+        "<< 整個大工作明確不做的事 >>"
+      ],
+      "frozen": false,
+      "signed_off_by": null,
+      "signed_off_at": null
+    }
+  ],
   "features": [
     {
       "id": "F1",
       "title": "<< 一句話：這個 feature 做什麼 >>",
       "status": "failing",
+      "envelope": "E1",
+      "prerequisites": [],
+      "non_goals": [
+        "<< 這條明確不做的相鄰工作。想過之後真的沒有就留空陣列 >>"
+      ],
+      "rollback": null,
       "scope_paths": [
         "src/<< 模組 >>/**",
         "db/migrations/<< pattern >>.sql"

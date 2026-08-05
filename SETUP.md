@@ -9,7 +9,7 @@
 - **範圍邊界**（`scope_paths`）——哪些路徑屬於本次工作
 - **驗收標準**（`acceptance`）——什麼叫做完
 
-這兩件事你猜不出來。猜錯了，後面六道檢查會全部通過，而東西是錯的。
+這兩件事你猜不出來。猜錯了，後面七道檢查會全部通過，而東西是錯的。
 
 ---
 
@@ -65,6 +65,12 @@ pr-template.md               →  <repo>/.github/pull_request_template.md
 - `acceptance` — 陣列，每條有 `id` 與 `check`
 - `acceptance_frozen: false`、`signed_off_by: null`（**還沒簽核，不准填**）
 - `status: "failing"`
+- `prerequisites` — 必須先完成的 feature id 陣列，無則 `[]`。它決定順序，也決定哪幾條能平行；指向不存在的條目或形成循環會被 schema 自檢擋下
+- `non_goals` — 這條**明確不做**的相鄰工作，無則 `[]`（先想過再寫空）
+- `rollback` — 出事怎麼還原。`git revert` 就能解的填 `null`；**碰 DB migration、外部服務設定、不可逆操作的一定要填**
+- `envelope` — 屬於哪個大工作，小工作填 `null`（見下）
+
+**大工作先開 envelope**：預估跨 3 條以上 feature，或跨多個面向（前端＋後端＋資料），先在 `envelopes` 開一條共用約束層——`id`／`outcome`／`constraints`／`non_goals`／`frozen: false`，每個 feature 用 `envelope` 指回去。**envelope 先簽核，再逐條談底下的 feature**；簽核後 `constraints` 與 `non_goals` 與 acceptance 同級凍結。目的是在規劃期就把大工作切成可獨立核准、可平行的單位——acceptance 凍結之後才發現要拆，只能走取代流程，很貴。
 
 **acceptance 撰寫規則**：每條都要寫「怎麼做 + 判準」，不准只寫結果形容詞。
 
@@ -95,7 +101,7 @@ Acceptance-Signed-Off-By: <使用者名字>"
 pwsh -File .harness/check.ps1
 ```
 
-應該看到六道檢查逐條結果，最後一行 `RESULT: PASS`。
+應該看到七道檢查逐條結果，最後一行 `RESULT: PASS`。
 
 再做一次**故意失敗**的測試——這一步不要省，沒驗過的防線等於沒有防線：
 

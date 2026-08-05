@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Harness 合規關卡：六道檢查，不需要自動測試也能跑。
+    Harness 合規關卡：七道檢查，不需要自動測試也能跑。
 
 .DESCRIPTION
     檢查的是「流程合規」——沒偷改驗收標準、沒超出範圍、證據有逐條對上。
@@ -141,7 +141,8 @@ foreach ($field in @('harness_version', 'features', 'always_allowed_paths')) {
 
 $features = @($fl.features)
 foreach ($f in $features) {
-    foreach ($field in @('id', 'title', 'status', 'scope_paths', 'acceptance', 'acceptance_frozen', 'evidence')) {
+    foreach ($field in @('id', 'title', 'status', 'scope_paths', 'acceptance', 'acceptance_frozen', 'evidence',
+                         'envelope', 'prerequisites', 'non_goals')) {
         if (-not (Test-JsonField $f $field)) {
             $fid = if (Test-JsonField $f 'id') { $f.id } else { '(無 id)' }
             Stop-FailClosed "feature $fid 缺少必要欄位：$field"
@@ -157,8 +158,57 @@ foreach ($f in $features) {
     }
 }
 
+# envelope（大工作的共用約束層）。整個 key 可以不存在＝這份 harness 沒有大工作；
+# 一旦存在，每一條都要完整——半成品的 envelope 比沒有更糟，因為 feature 會指向它。
+# 不要寫成 `$x = if (...) { @(...) } else { @() }`——if 區塊回傳空陣列時會被展開成 $null，
+# StrictMode 下後面取 .Count 就炸（同 Test-JsonField 上面那段註解講的同一類坑）。
+$envelopes = @()
+if (Test-JsonField $fl 'envelopes') { $envelopes = @($fl.envelopes) }
+foreach ($e in $envelopes) {
+    foreach ($field in @('id', 'outcome', 'constraints', 'non_goals', 'frozen')) {
+        if (-not (Test-JsonField $e $field)) {
+            $eid = if (Test-JsonField $e 'id') { $e.id } else { '(無 id)' }
+            Stop-FailClosed "envelope $eid 缺少必要欄位：$field"
+        }
+    }
+}
+$envelopeIds = @($envelopes | ForEach-Object { $_.id })
+$featureIds  = @($features  | ForEach-Object { $_.id })
+
+foreach ($f in $features) {
+    $envId = Get-JsonProperty $f 'envelope'
+    if ($envId -and ($envId -notin $envelopeIds)) {
+        Stop-FailClosed "feature $($f.id) 的 envelope 指向不存在的 $envId"
+    }
+    foreach ($p in @($f.prerequisites)) {
+        if ($p -notin $featureIds) {
+            Stop-FailClosed "feature $($f.id) 的 prerequisites 指向不存在的 feature：$p"
+        }
+        if ($p -eq $f.id) {
+            Stop-FailClosed "feature $($f.id) 的 prerequisites 指向自己"
+        }
+    }
+}
+
+# 循環相依：反覆移除「前置條件都已滿足」的條目，移不動就是有環。
+# 有環的清單排不出順序，也判不出誰能平行——讓它靜靜留在檔案裡最貴。
+$pending = @{}
+foreach ($f in $features) { $pending[$f.id] = @(@($f.prerequisites) | Where-Object { $_ }) }
+$progress = $true
+while ($progress -and $pending.Count -gt 0) {
+    $progress = $false
+    foreach ($id in @($pending.Keys)) {
+        if (@($pending[$id] | Where-Object { $pending.ContainsKey($_) }).Count -eq 0) {
+            $pending.Remove($id); $progress = $true
+        }
+    }
+}
+if ($pending.Count -gt 0) {
+    Stop-FailClosed "prerequisites 出現循環相依：$(@($pending.Keys | Sort-Object) -join ', ')"
+}
+
 Add-Result -Id '5' -Name 'schema 自檢' -Status 'PASS' `
-    -Detail @("feature 數：$($features.Count)；必要欄位齊全")
+    -Detail @("feature 數：$($features.Count)；envelope 數：$($envelopes.Count)；必要欄位齊全、參照有效、無循環相依")
 
 # ---------------------------------------------------------------- 決定比較基準與改動清單
 
@@ -197,11 +247,11 @@ if ($currentFeature) {
     $scopeFeatures = @($features | Where-Object { $_.status -eq 'failing' })
 }
 
-# ---------------------------------------------------------------- 1 · acceptance 凍結
+# ---------------------------------------------------------------- 1 · acceptance／envelope 凍結
 
 $prevJson = (& git show "${baseRef}:.harness/feature_list.json" 2>$null) -join "`n"
 if (-not $prevJson) {
-    Add-Result -Id '1' -Name 'acceptance 凍結' -Status 'SKIP' `
+    Add-Result -Id '1' -Name 'acceptance／envelope 凍結' -Status 'SKIP' `
         -Detail @("$baseRef 上沒有 feature_list.json（首次建置），無從比對")
 } else {
     $prev = $prevJson | ConvertFrom-Json
@@ -214,18 +264,35 @@ if (-not $prevJson) {
         $after  = ($cur.acceptance | ConvertTo-Json -Depth 10 -Compress)
         if ($before -ne $after) { $violations += "$($pf.id)：已凍結的 acceptance 被修改" }
     }
+    # envelope 的 constraints 與 non_goals 簽核後與 acceptance 同級凍結：
+    # 底下每個 slice 都是在那組約束下被核准的，事後改約束等於整批 slice 的核准失效。
+    # 基準版本可能還沒有 envelopes 這個 key（導入前的 harness）——StrictMode 下直接取值會炸，
+    # 一律走 Test-JsonField。沒有就是沒有大工作要比對。
+    $prevEnvelopes = @()
+    if (Test-JsonField $prev 'envelopes') { $prevEnvelopes = @($prev.envelopes) }
+    foreach ($pe in $prevEnvelopes) {
+        if (-not (Test-JsonField $pe 'frozen') -or -not $pe.frozen) { continue }
+        $cur = $envelopes | Where-Object { $_.id -eq $pe.id } | Select-Object -First 1
+        if (-not $cur) { $violations += "$($pe.id)：已凍結的 envelope 被整條刪除"; continue }
+        foreach ($field in @('constraints', 'non_goals')) {
+            if (-not (Test-JsonField $pe $field)) { continue }
+            $before = ($pe.$field | ConvertTo-Json -Depth 10 -Compress)
+            $after  = ($cur.$field | ConvertTo-Json -Depth 10 -Compress)
+            if ($before -ne $after) { $violations += "$($pe.id)：已凍結的 envelope $field 被修改" }
+        }
+    }
 
     if ($violations.Count -eq 0) {
-        Add-Result -Id '1' -Name 'acceptance 凍結' -Status 'PASS' -Detail @('已凍結的驗收標準沒有被改動')
+        Add-Result -Id '1' -Name 'acceptance／envelope 凍結' -Status 'PASS' -Detail @('已凍結的驗收標準與 envelope 約束沒有被改動')
     } else {
         $range = if ($Promote) { "$Base..HEAD" } else { 'HEAD~1..HEAD' }
         $log = (& git log $range --format=%B 2>$null) -join "`n"
         $hasTrailer = $log -match '(?m)^(Acceptance-Change-Approved-By|Acceptance-Signed-Off-By):\s*\S+'
         if ($hasTrailer) {
-            Add-Result -Id '1' -Name 'acceptance 凍結' -Status 'PASS' `
+            Add-Result -Id '1' -Name 'acceptance／envelope 凍結' -Status 'PASS' `
                 -Detail (@('驗收標準有改動，但帶有簽核 trailer：') + $violations)
         } else {
-            Add-Result -Id '1' -Name 'acceptance 凍結' -Status 'FAIL' `
+            Add-Result -Id '1' -Name 'acceptance／envelope 凍結' -Status 'FAIL' `
                 -Detail (@('已凍結的驗收標準被改動，且沒有簽核 trailer。') +
                          $violations +
                          @('', '規則：發現漏了就「新增」一條標 failing 回去簽核，不要改舊的。',
@@ -338,6 +405,27 @@ if ($signoffIssues.Count -eq 0) {
         -Detail ($signoffIssues + @('', '驗收標準要先由人簽核凍結，才能開工、才能宣告完成。'))
 }
 
+# ---------------------------------------------------------------- 7 · 前置條件
+
+# prerequisites 宣告的是「誰得先做完」。一條 feature 的前置還在 failing 就宣告 passing，
+# 代表它其實不依賴那條（宣告錯了），或驗收沒真的跑過依賴路徑（驗收虛過）。兩種都要停下來看。
+$prereqIssues = @()
+$statusById = @{}
+foreach ($f in $features) { $statusById[$f.id] = $f.status }
+foreach ($f in $features | Where-Object { $_.status -eq 'passing' }) {
+    foreach ($p in @($f.prerequisites)) {
+        if ($statusById[$p] -ne 'passing') {
+            $prereqIssues += "$($f.id)：狀態 passing，但前置 $p 仍是 $($statusById[$p])"
+        }
+    }
+}
+if ($prereqIssues.Count -eq 0) {
+    Add-Result -Id '7' -Name '前置條件' -Status 'PASS' -Detail @('沒有前置未完成就宣告完成的 feature')
+} else {
+    Add-Result -Id '7' -Name '前置條件' -Status 'FAIL' `
+        -Detail ($prereqIssues + @('', '要嘛前置真的還沒做完（先做完），要嘛 prerequisites 宣告錯了（回簽核改）。'))
+}
+
 # ---------------------------------------------------------------- 輸出
 
 function Write-Report {
@@ -385,7 +473,7 @@ function Write-Report {
         $lines += ''
     }
 
-    $lines += @('## 六道檢查', '')
+    $lines += @('## 檢查結果', '')
     foreach ($r in ($script:Results | Sort-Object Id)) {
         $lines += "**$($r.Id). $($r.Name)** — $($r.Status)"
         $lines += ''

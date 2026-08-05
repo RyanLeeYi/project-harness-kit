@@ -27,10 +27,13 @@
 - `status` 只有 `failing` / `passing`，**沒有中間狀態**
 - **acceptance 簽核後凍結，不得修改。** 發現漏了 → **新增**一條標 `failing` 並回去簽核，**不是**改舊的
   > 一次放寬一點點，最後標準會全部消失。所以只准增、不准改
-- 翻成 `passing` 的三個要件，缺一不可：
+- **envelope 的 `constraints` 與 `non_goals` 簽核後同級凍結**——底下每個 feature 都是在那組約束下被核准的，事後改約束等於整批核准失效
+- `prerequisites` 是宣告的順序，也是能不能平行的依據。不互為前置、`scope_paths` 無交集的 feature 才可以同時進行
+- 翻成 `passing` 的四個要件，缺一不可：
   1. `check.ps1` 回傳 PASS
   2. evidence **逐條對應** acceptance
   3. 動到的檔案全在該 feature 的 `scope_paths` 內
+  4. `prerequisites` 列的 feature 全都已經 `passing`
 - **清單以外的事不要做。** 冒出新需求 → 先加進清單標 `failing`，回到第 4 節走簽核
 
 ## 4 · 新需求進來怎麼辦
@@ -39,7 +42,9 @@
 1. 歸檔上一案 ── 已 passing 的 features 搬進
                  .harness/archive/feature_list-<案名>-<日期>.json
 2. 起草 feature ── id / title / scope_paths / acceptance
+                   prerequisites / non_goals / rollback / envelope
                    acceptance_frozen: false, signed_off_by: null
+   （跨 3 條以上或跨多面向 → 先開 envelope 並先簽核）
 3. ⛔ 停下來要簽核 ── 不得自行開工
 4. 使用者簽核 ── 他自己執行 commit（trailer 帶 Acceptance-Signed-Off-By）
 5. 開工

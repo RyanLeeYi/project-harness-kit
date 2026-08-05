@@ -49,11 +49,16 @@ function New-FeatureList {
         harness_version      = 1
         promote_base         = 'beta'
         always_allowed_paths = @('.harness/**', 'docs/**', 'AGENTS.md')
+        envelopes            = @()
         features             = @(
             [ordered]@{
                 id                = 'F1'
                 title             = '折扣計算'
                 status            = 'failing'
+                envelope          = $null
+                prerequisites     = @()
+                non_goals         = @()
+                rollback          = $null
                 scope_paths       = @('src/Orders/**')
                 acceptance_frozen = $true
                 signed_off_by     = 'Tester'
