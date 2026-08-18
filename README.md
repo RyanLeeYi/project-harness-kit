@@ -115,6 +115,6 @@ pwsh -File tests/run-tests.ps1
 
 ## 相關
 
-個人版的通用框架（三級漸進、完整模板組、雙語）：[harness-for-builders](https://github.com/RyanLeeYi/harness-for-builders)。這個 kit 是它的團隊／無 CI 變體——把強制力從「本地設定」搬到「隨 repo 走的腳本 + 既有的 PR 關卡」。
+個人版的通用框架（痛點觸發的產物組、完整模板、雙語）：[harness-for-builders](https://github.com/RyanLeeYi/harness-for-builders)。這個 kit 是它的團隊／無 CI 變體——把強制力從「本地設定」搬到「隨 repo 走的腳本 + 既有的 PR 關卡」。
 
 MIT License.
